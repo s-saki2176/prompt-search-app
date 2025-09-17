@@ -1,6 +1,6 @@
 import streamlit as st
 from streamlit_oauth import OAuth2Component
-import asyncio
+# asyncioは不要なので削除
 
 st.title("Google認証テスト")
 
@@ -19,22 +19,24 @@ if not all([CLIENT_ID, CLIENT_SECRET, REDIRECT_URI]):
 oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, TOKEN_URL, REVOKE_URL)
 
 if 'token' not in st.session_state:
-    result = asyncio.run(oauth2.authorize_button(
+    # ★★★ asyncio.run() を削除 ★★★
+    result = oauth2.authorize_button(
         name="会社のGoogleアカウントでログイン",
         icon="https://www.google.com/favicon.ico",
         redirect_uri=REDIRECT_URI,
         scope="email profile",
         key="google",
         use_container_width=True
-    ))
+    )
     if result:
         st.session_state.token = result.get('token')
         st.rerun()
 else:
     token = st.session_state.get('token')
-    user_info = asyncio.run(oauth2.get_user_info(token))
+    # ★★★ asyncio.run() を削除 ★★★
+    user_info = oauth2.get_user_info(token)
     
-    allowed_domain = st.secrets.get("ALLOWED_DOMAIN", "your-company.com")
+    allowed_domain = st.secrets.get("ALLOWED_DOMAIN")
 
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
         st.success("認証に成功しました！")
@@ -42,5 +44,6 @@ else:
     else:
         st.error("エラー: 許可されていないドメインのアカウントです。")
         if st.button("ログアウト"):
+            # セッション情報をクリアして、再度ログインボタンを表示
             st.session_state.clear()
             st.rerun()
