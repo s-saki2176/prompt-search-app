@@ -39,8 +39,7 @@ def check_google_auth():
     token = st.session_state.get('token')
     user_info = asyncio.run(oauth2.get_user_info(token))
     
-    # ★★★ ここにあなたの会社のドメイン名を設定 ★★★
-    allowed_domain = "odashima.co.jp" 
+    allowed_domain = st.secrets.get("ALLOWED_DOMAIN", "odashima.co.jp")
 
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
         st.sidebar.success(f"{user_info.get('email')}としてログイン中")
@@ -53,18 +52,69 @@ def check_google_auth():
 # --- メインのアプリケーション ---
 def main_app():
     st.title("カエレル内プロンプト検索AI🐸")
-    
-    # (APIキー設定は省略)
-    
+
+    NOTION_API_KEY = st.secrets["NOTION_API_KEY"]
+    NOTION_DATABASE_ID = st.secrets["NOTION_DATABASE_ID"]
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+
     @st.cache_data(ttl=600)
     def get_prompts_from_notion():
-        # ... (先ほど説明したキーワード検索対応版の関数をここに) ...
+        notion = Client(auth=NOTION_API_KEY)
+        results = notion.databases.query(database_id=NOTION_DATABASE_ID).get("results")
+        prompts_data = []
+        for page in results:
+            properties = page.get("properties", {})
+            title = properties.get("プロンプト名", {}).get("title", [{}])[0].get("text", {}).get("content", "")
+            keywords_list = [tag.get("name", "") for tag in properties.get("関連キーワード", {}).get("multi_select", [])]
+            keywords = " ".join(keywords_list)
+            page_content = ""
+            try:
+                blocks = notion.blocks.children.list(block_id=page["id"]).get("results")
+                for block in blocks:
+                    if block["type"] == "paragraph":
+                        page_content += "".join([text["plain_text"] for text in block["paragraph"]["rich_text"]])
+            except Exception:
+                pass
+            search_text = f"{title} {keywords} {page_content}"
+            prompts_data.append({
+                "title": title,
+                "full_text": f"プロンプト名: {title}\n\n---\n\n{page_content}",
+                "search_text": search_text
+            })
+        return pd.DataFrame(prompts_data)
 
-    # (AI回答生成関数は省略)
-    
-    # (データ準備とUI部分は省略)
+    def generate_answer_with_gemini(query, relevant_prompts):
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerModel('gemini-1.5-flash')
+        if relevant_prompts.empty:
+            return "申し訳ありませんが、関連するプロンプトが見つかりませんでした。"
+        context = "\n\n".join(relevant_prompts['full_text'].tolist())
+        prompt_for_gemini = f"""
+        あなたは、社内のプロンプト共有をサポートする優秀なアシスタントです。
+        以下の参考情報を基にして、ユーザーの質問に最も合うプロンプトを提案してください。
+        # ユーザーの質問
+        {query}
+        # 参考情報
+        {context}
+        # あなたの回答
+        上記の参考情報を踏まえ、プロンプトを1つ選び、なぜ良いかを説明してください。
+        その後、選んだプロンプトの全文を、以下の形式で必ず提示してください。
+        ---
+        ### 提案するプロンプト：[ここにプロンプト名]
+        ```
+        [ここにプロンプト本文]
+        ```
+        """
+        response = model.generate_content(prompt_for_gemini)
+        return response.text
 
+    try:
+        df_prompts = get_prompts_from_notion()
+        if not df_prompts.empty:
+            vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 3))
+            tfidf_matrix = vectorizer.fit_transform(df_prompts['search_text'])
+    except Exception as e:
+        st.error(f"Notionデータ取得エラー: {e}")
+        st.stop()
 
-# --- プログラムの実行開始点 ---
-if check_google_auth():
-    main_app()
+    user_query
