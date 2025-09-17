@@ -52,7 +52,7 @@ def check_google_auth():
 
 # --- メインのアプリケーション ---
 def main_app():
-    st.title("カエレル内プロンプト検索AI 🐸")
+    st.title("カエレル内プロンプト検索AI🐸")
     
     # (APIキー設定は省略)
     
