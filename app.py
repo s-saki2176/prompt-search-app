@@ -1,17 +1,46 @@
 import streamlit as st
+from streamlit_oauth import OAuth2Component
+import asyncio
 
-st.title("これはテスト用アプリです")
+st.title("Google認証テスト")
 
-st.write("この画面が表示されれば、Streamlitの基本機能は正常に動いています。")
+# --- Google OAuth認証機能 ---
+CLIENT_ID = st.secrets.get("GOOGLE_CLIENT_ID")
+CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET")
+REDIRECT_URI = st.secrets.get("REDIRECT_URI")
+AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 
-try:
-    # 7つあるSecretのうち、1つだけを試しに読み込んでみる
-    test_secret = st.secrets["NOTION_API_KEY"]
-    st.success("SecretsからNOTION_API_KEYの読み込みに成功しました！")
+if not all([CLIENT_ID, CLIENT_SECRET, REDIRECT_URI]):
+    st.error("エラー: Google認証情報がsecrets.tomlに正しく設定されていません。")
+    st.stop()
+
+oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, TOKEN_URL, REVOKE_URL)
+
+if 'token' not in st.session_state:
+    result = asyncio.run(oauth2.authorize_button(
+        name="会社のGoogleアカウントでログイン",
+        icon="https://www.google.com/favicon.ico",
+        redirect_uri=REDIRECT_URI,
+        scope="email profile",
+        key="google",
+        use_container_width=True
+    ))
+    if result:
+        st.session_state.token = result.get('token')
+        st.rerun()
+else:
+    token = st.session_state.get('token')
+    user_info = asyncio.run(oauth2.get_user_info(token))
     
-    # 確認のため、読み込んだキーの最初の5文字だけ表示
-    st.write(f"読み込んだキーの最初の5文字: {test_secret[:5]}...")
+    allowed_domain = st.secrets.get("ALLOWED_DOMAIN", "your-company.com")
 
-except Exception as e:
-    st.error("Secretsの読み込み中にエラーが発生しました。")
-    st.error(f"エラーの詳細: {e}")
+    if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
+        st.success("認証に成功しました！")
+        st.write(f"{user_info.get('email')}としてログインしています。")
+    else:
+        st.error("エラー: 許可されていないドメインのアカウントです。")
+        if st.button("ログアウト"):
+            st.session_state.clear()
+            st.rerun()
