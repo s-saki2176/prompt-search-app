@@ -3,4 +3,3 @@ pandas
 notion-client
 google-generativeai
 scikit-learn
-httpx
