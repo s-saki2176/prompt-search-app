@@ -57,4 +57,4 @@ def google_auth():
     allowed_domain = st.secrets.get("ALLOWED_DOMAIN")
     
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
-        st.sidebar.success(f"{user_info.get('email')}としてログイン中
+        st.sidebar.success(f"{user_info.get('email')}としてログイン中")
