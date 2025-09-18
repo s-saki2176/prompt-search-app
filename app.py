@@ -4,8 +4,8 @@ from notion_client import Client
 import google.generativeai as genai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import httpx  # ★ 新しいライブラリ
-import webbrowser # ★ 新しいライブラリ
+import httpx
+import webbrowser
 
 # --- Google OAuth 認証機能 (安定版) ---
 def google_auth():
@@ -45,7 +45,7 @@ def google_auth():
                 )
                 user_info_response.raise_for_status()
                 st.session_state.user_info = user_info_response.json()
-                st.query_params.clear() # 認証後にURLからコードを削除
+                st.query_params.clear()
                 st.rerun()
 
         except Exception as e:
@@ -57,24 +57,4 @@ def google_auth():
     allowed_domain = st.secrets.get("ALLOWED_DOMAIN")
     
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
-        st.sidebar.success(f"{user_info.get('email')}としてログイン中")
-        if st.sidebar.button("ログアウト"):
-            st.session_state.clear()
-            st.query_params.clear()
-            st.rerun()
-        return True
-    else:
-        st.error("エラー: 許可されていないドメインのアカウントです。")
-        if st.sidebar.button("ログアウト"):
-            st.session_state.clear()
-            st.query_params.clear()
-            st.rerun()
-        st.stop()
-
-# --- メインのアプリケーション ---
-def main_app():
-    # ... (この部分は前回から変更ありません) ...
-
-# --- プログラムの実行開始点 ---
-if google_auth():
-    main_app()
+        st.sidebar.success(f"{user_info.get('email')}としてログイン中
