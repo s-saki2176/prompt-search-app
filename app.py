@@ -1,54 +1,80 @@
 import streamlit as st
-from streamlit_oauth import OAuth2Component
+import pandas as pd
+from notion_client import Client
+import google.generativeai as genai
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import httpx  # ★ 新しいライブラリ
+import webbrowser # ★ 新しいライブラリ
 
-st.title("Google認証テスト")
-
-# --- Google OAuth認証機能 ---
-CLIENT_ID = st.secrets.get("GOOGLE_CLIENT_ID")
-CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET")
-REDIRECT_URI = st.secrets.get("REDIRECT_URI")
-AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
-REVOKE_URL = "https://oauth2.googleapis.com/revoke"
-
-if not all([CLIENT_ID, CLIENT_SECRET, REDIRECT_URI]):
-    st.error("エラー: Google認証情報がsecrets.tomlに正しく設定されていません。")
-    st.stop()
-
-oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, TOKEN_URL, REVOKE_URL)
-
-if 'token' not in st.session_state:
-    result = oauth2.authorize_button(
-        name="会社のGoogleアカウントでログイン",
-        icon="https://www.google.com/favicon.ico",
-        redirect_uri=REDIRECT_URI,
-        scope="email profile",
-        key="google",
-        use_container_width=True
-    )
-    if result:
-        st.session_state.token = result.get('token')
-        st.session_state.user_info = result.get('token', {}).get('userinfo')
-        st.rerun()
-else:
-    user_info = st.session_state.get('user_info')
+# --- Google OAuth 認証機能 (安定版) ---
+def google_auth():
+    CLIENT_ID = st.secrets.get("GOOGLE_CLIENT_ID")
+    CLIENT_SECRET = st.secrets.get("GOOGLE_CLIENT_SECRET")
+    REDIRECT_URI = st.secrets.get("REDIRECT_URI")
+    AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    USER_INFO_URL = "https://www.googleapis.com/oauth2/v1/userinfo"
     
-    # ★★★ デバッグ用：取得したユーザー情報を画面に表示 ★★★
-    st.write("---")
-    st.write("Googleから取得したユーザー情報:")
-    st.json(user_info) # user_infoの内容をすべて表示
-    st.write("---")
-    
+    if 'user_info' not in st.session_state:
+        query_params = st.query_params
+        auth_code = query_params.get("code")
+
+        if not auth_code:
+            auth_link = f"{AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code&scope=email%20profile"
+            st.markdown(f'<a href="{auth_link}" target="_self">会社のGoogleアカウントでログイン</a>', unsafe_allow_html=True)
+            st.stop()
+        
+        try:
+            with httpx.Client() as client:
+                token_response = client.post(
+                    TOKEN_URL,
+                    data={
+                        "client_id": CLIENT_ID,
+                        "client_secret": CLIENT_SECRET,
+                        "code": auth_code,
+                        "grant_type": "authorization_code",
+                        "redirect_uri": REDIRECT_URI,
+                    },
+                )
+                token_response.raise_for_status()
+                access_token = token_response.json()["access_token"]
+
+                user_info_response = client.get(
+                    USER_INFO_URL, headers={"Authorization": f"Bearer {access_token}"}
+                )
+                user_info_response.raise_for_status()
+                st.session_state.user_info = user_info_response.json()
+                st.query_params.clear() # 認証後にURLからコードを削除
+                st.rerun()
+
+        except Exception as e:
+            st.error("認証中にエラーが発生しました。")
+            st.error(e)
+            st.stop()
+            
+    user_info = st.session_state.user_info
     allowed_domain = st.secrets.get("ALLOWED_DOMAIN")
-
+    
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
-        st.success("認証に成功しました！")
-        st.write(f"{user_info.get('email')}としてログインしています。")
-        if st.button("ログアウト"):
+        st.sidebar.success(f"{user_info.get('email')}としてログイン中")
+        if st.sidebar.button("ログアウト"):
             st.session_state.clear()
+            st.query_params.clear()
             st.rerun()
+        return True
     else:
         st.error("エラー: 許可されていないドメインのアカウントです。")
-        if st.button("ログアウト"):
+        if st.sidebar.button("ログアウト"):
             st.session_state.clear()
+            st.query_params.clear()
             st.rerun()
+        st.stop()
+
+# --- メインのアプリケーション ---
+def main_app():
+    # ... (この部分は前回から変更ありません) ...
+
+# --- プログラムの実行開始点 ---
+if google_auth():
+    main_app()
