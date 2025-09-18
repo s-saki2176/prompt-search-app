@@ -17,7 +17,6 @@ if not all([CLIENT_ID, CLIENT_SECRET, REDIRECT_URI]):
 
 oauth2 = OAuth2Component(CLIENT_ID, CLIENT_SECRET, AUTH_URL, TOKEN_URL, TOKEN_URL, REVOKE_URL)
 
-# セッションにトークンとユーザー情報がない場合、ログインボタンを表示
 if 'token' not in st.session_state:
     result = oauth2.authorize_button(
         name="会社のGoogleアカウントでログイン",
@@ -28,14 +27,18 @@ if 'token' not in st.session_state:
         use_container_width=True
     )
     if result:
-        # ★★★ 修正点：ログイン成功時にユーザー情報も一緒に保存する ★★★
         st.session_state.token = result.get('token')
-        st.session_state.user_info = result.get('token', {}).get('userinfo') # ユーザー情報を取得
+        st.session_state.user_info = result.get('token', {}).get('userinfo')
         st.rerun()
-
-# セッションにユーザー情報がある場合、認証済みとみなす
 else:
     user_info = st.session_state.get('user_info')
+    
+    # ★★★ デバッグ用：取得したユーザー情報を画面に表示 ★★★
+    st.write("---")
+    st.write("Googleから取得したユーザー情報:")
+    st.json(user_info) # user_infoの内容をすべて表示
+    st.write("---")
+    
     allowed_domain = st.secrets.get("ALLOWED_DOMAIN")
 
     if user_info and user_info.get("email", "").endswith(f"@{allowed_domain}"):
