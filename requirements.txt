@@ -3,4 +3,4 @@ pandas
 notion-client
 google-generativeai
 scikit-learn
-streamlit-oauth
+streamlit-oauth>=0.1.2
