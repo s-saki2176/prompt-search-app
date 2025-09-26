@@ -63,7 +63,7 @@ def main_app():
 
     def generate_answer_with_gemini(query, relevant_prompts):
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.5-flash-lite')
+        model = genai.GenerativeModel('gemini-2.0-flash-lite-latest')
         if relevant_prompts.empty:
             return "申し訳ありませんが、関連するプロンプトが見つかりませんでした。"
         context = "\n\n".join(relevant_prompts['full_text'].tolist())
